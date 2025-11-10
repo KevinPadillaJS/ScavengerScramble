@@ -1,0 +1,3 @@
+repository "Scavenger_Scramble/Scavenger_Scramble@20067516573728@cloud"
+  path "/"
+    smartbranch "/main"
