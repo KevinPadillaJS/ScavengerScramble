@@ -3,7 +3,7 @@ using UnityEngine.Events;
 
 public class LivesManager : MonoBehaviour
 {
-    public static LivesManager Instance { get; private set; }
+    // public static LivesManager Instance { get; private set; }
 
     [Header("Config")]
     public int maxLives = 3;
@@ -20,8 +20,6 @@ public class LivesManager : MonoBehaviour
 
     void Awake()
     {
-        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
-        Instance = this;
         currentLives = Mathf.Max(1, maxLives);
         OnLivesChanged?.Invoke(currentLives);
         // Optional: DontDestroyOnLoad(gameObject);

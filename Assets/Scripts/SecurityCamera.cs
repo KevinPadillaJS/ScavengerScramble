@@ -1,10 +1,11 @@
 using UnityEngine;
 using UnityEngine.Events;
+using System.Collections.Generic;
 
 public class SecurityCamera : MonoBehaviour
 {
     [Header("References")]
-    public Transform head; // assign the visible camera head (the one that should tilt down)
+    public Transform head;
 
     [Header("Sweep")]
     public float sweepAngle = 60f;
@@ -17,15 +18,19 @@ public class SecurityCamera : MonoBehaviour
     public LayerMask obstructionMask;
     public LayerMask targetMask;
 
-    [Header("Events")]
+    [Header("Caught")]
+    public int damage = 1;
+    public float hitCooldown = 1f;            // seconds between hits on the same target
     public UnityEvent OnPlayerCaught;
 
+    // --- private state ---
     float _timeAtEnd;
     int _dir = 1;
     bool _atEnd;
-    float _currentRotation;           // tracks rotation offset
-    Quaternion _headInitialLocal;     // keeps the head’s tilt constant
-    Quaternion _baseInitialRot;       // base reference rotation
+    float _currentRotation;
+    Quaternion _headInitialLocal;
+    Quaternion _baseInitialRot;
+    readonly Dictionary<Transform, float> _nextHitTime = new();
 
     void Awake()
     {
@@ -58,10 +63,8 @@ public class SecurityCamera : MonoBehaviour
         float step = sweepSpeed * Time.deltaTime * _dir;
         _currentRotation = Mathf.Clamp(_currentRotation + step, -max, max);
 
-        // ✅ Rotate around the LOCAL Z-axis instead of Y
+        // rotate around local Z (your choice)
         transform.rotation = _baseInitialRot * Quaternion.Euler(0f, 0f, _currentRotation);
-
-        // Keep the head’s local tilt fixed
         head.localRotation = _headInitialLocal;
 
         if (Mathf.Approximately(_currentRotation, -max) || Mathf.Approximately(_currentRotation, max))
@@ -70,7 +73,7 @@ public class SecurityCamera : MonoBehaviour
 
     void VisionUpdate()
     {
-        Collider[] hits = Physics.OverlapSphere(head.position, viewDistance, targetMask, QueryTriggerInteraction.Ignore);
+        var hits = Physics.OverlapSphere(head.position, viewDistance, targetMask, QueryTriggerInteraction.Ignore);
 
         for (int i = 0; i < hits.Length; i++)
         {
@@ -80,10 +83,20 @@ public class SecurityCamera : MonoBehaviour
 
             if (Vector3.Angle(head.forward, dir) <= viewHalfAngle)
             {
+                // clear line of sight?
                 if (!Physics.Raycast(head.position, dir, dist, obstructionMask, QueryTriggerInteraction.Ignore))
                 {
-                    OnPlayerCaught?.Invoke();
-                    break;
+                    // cooldown per target
+                    Transform t = hits[i].transform;
+                    if (!_nextHitTime.TryGetValue(t, out float readyAt) || Time.time >= readyAt)
+                    {
+                        // APPLY DAMAGE HERE
+                        hits[i].GetComponent<PlayerRespawn>()?.TakeDamage(damage);
+
+                        _nextHitTime[t] = Time.time + hitCooldown;
+                        OnPlayerCaught?.Invoke();
+                    }
+                    // no break; so it can hit both players in the same frame if visible
                 }
             }
         }
